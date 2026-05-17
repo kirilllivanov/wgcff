@@ -4,8 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to release, for example v1.2.3"
+        description: "Tag to create and release, for example v1.2.3"
         required: true
+        type: string
+      commit:
+        description: "Commit SHA on master to release; defaults to master HEAD"
+        required: false
         type: string
   push:
     tags:
@@ -19,11 +23,68 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout
+      - name: Checkout master
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v6.0.1
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: master
           fetch-depth: 0
+
+      - name: Checkout release ref
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Save GoReleaser config
+        run: cp .goreleaser.yml "${RUNNER_TEMP}/goreleaser.yml"
+
+      - name: Create release tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          git fetch --force origin master:refs/remotes/origin/master --tags
+
+          TARGET_COMMIT="${COMMIT:-origin/master}"
+          if ! RELEASE_COMMIT="$(git rev-parse --verify "${TARGET_COMMIT}^{commit}")"; then
+            echo "::error::Commit ${TARGET_COMMIT} was not found."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "${RELEASE_COMMIT}" origin/master; then
+            echo "::error::Commit ${RELEASE_COMMIT} is not on master."
+            exit 1
+          fi
+
+          git checkout --detach "${RELEASE_COMMIT}"
+
+          if git rev-parse --quiet --verify "refs/tags/${TAG}" >/dev/null; then
+            TAG_COMMIT="$(git rev-list -n 1 "refs/tags/${TAG}")"
+            if [ "${TAG_COMMIT}" != "${RELEASE_COMMIT}" ]; then
+              echo "::error::Tag ${TAG} points to ${TAG_COMMIT}, but the selected release commit is ${RELEASE_COMMIT}."
+              echo "::error::Delete and recreate the tag, select ${TAG_COMMIT}, or use a new tag."
+              exit 1
+            fi
+
+            echo "Tag ${TAG} already points to ${RELEASE_COMMIT}; continuing."
+          else
+            git tag -- "${TAG}"
+            git push origin "refs/tags/${TAG}"
+          fi
+
+      - name: Verify release tag
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          HEAD_COMMIT="$(git rev-parse HEAD)"
+          TAG_COMMIT="$(git rev-list -n 1 "refs/tags/${TAG}")"
+
+          if [ "${TAG_COMMIT}" != "${HEAD_COMMIT}" ]; then
+            echo "::error::Tag ${TAG} points to ${TAG_COMMIT}, but HEAD is ${HEAD_COMMIT}."
+            exit 1
+          fi
 
       - name: Fetch Go version
         run: |
@@ -40,6 +101,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v6.4.0
         with:
           version: ~> 2.7.0
-          args: release --clean
+          args: release --clean --config=${{ runner.temp }}/goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}

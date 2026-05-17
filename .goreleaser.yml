@@ -1,4 +1,5 @@
-before:
+version: 2
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -28,6 +29,7 @@ builds:
     gomips:
       - softfloat
 archives:
-  - format: binary
+  - formats:
+      - binary
 checksum:
   name_template: "checksums.txt"
