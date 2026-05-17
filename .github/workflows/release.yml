@@ -12,6 +12,8 @@ on:
         required: false
         type: string
   push:
+    branches:
+      - master
     tags:
       - "*"
 
@@ -39,26 +41,52 @@ jobs:
       - name: Save GoReleaser config
         run: cp .goreleaser.yml "${RUNNER_TEMP}/goreleaser.yml"
 
+      - name: Set release tag from pushed tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+          echo "GORELEASER_CURRENT_TAG=${GITHUB_REF_NAME}" >> "${GITHUB_ENV}"
+
       - name: Create release tag
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/master'
         env:
-          TAG: ${{ inputs.tag }}
-          COMMIT: ${{ inputs.commit }}
+          TAG: ${{ github.event.inputs.tag }}
+          COMMIT: ${{ github.event.inputs.commit }}
         run: |
           git fetch --force origin master:refs/remotes/origin/master --tags
 
-          TARGET_COMMIT="${COMMIT:-origin/master}"
-          if ! RELEASE_COMMIT="$(git rev-parse --verify "${TARGET_COMMIT}^{commit}")"; then
-            echo "::error::Commit ${TARGET_COMMIT} was not found."
-            exit 1
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TARGET_COMMIT="${COMMIT:-origin/master}"
+            if ! RELEASE_COMMIT="$(git rev-parse --verify "${TARGET_COMMIT}^{commit}")"; then
+              echo "::error::Commit ${TARGET_COMMIT} was not found."
+              exit 1
+            fi
+
+            if ! git merge-base --is-ancestor "${RELEASE_COMMIT}" origin/master; then
+              echo "::error::Commit ${RELEASE_COMMIT} is not on master."
+              exit 1
+            fi
+
+            git checkout --detach "${RELEASE_COMMIT}"
+          else
+            RELEASE_COMMIT="$(git rev-parse HEAD)"
           fi
 
-          if ! git merge-base --is-ancestor "${RELEASE_COMMIT}" origin/master; then
-            echo "::error::Commit ${RELEASE_COMMIT} is not on master."
-            exit 1
+          if [ -z "${TAG}" ]; then
+            TAG="$(git tag --list "v[0-9]*.[0-9]*.[0-9]*" --points-at "${RELEASE_COMMIT}" --sort=-v:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n 1 || true)"
           fi
 
-          git checkout --detach "${RELEASE_COMMIT}"
+          if [ -z "${TAG}" ]; then
+            LATEST_TAG="$(git tag --list "v[0-9]*.[0-9]*.[0-9]*" --merged "${RELEASE_COMMIT}" --sort=-v:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n 1 || true)"
+            if [ -z "${LATEST_TAG}" ]; then
+              TAG="v0.1.0"
+            elif [[ "${LATEST_TAG}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              TAG="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+            else
+              echo "::error::Latest release tag ${LATEST_TAG} is not a vX.Y.Z tag."
+              exit 1
+            fi
+          fi
 
           if git rev-parse --quiet --verify "refs/tags/${TAG}" >/dev/null; then
             TAG_COMMIT="$(git rev-list -n 1 "refs/tags/${TAG}")"
@@ -74,10 +102,12 @@ jobs:
             git push origin "refs/tags/${TAG}"
           fi
 
+          echo "RELEASE_TAG=${TAG}" >> "${GITHUB_ENV}"
+          echo "GORELEASER_CURRENT_TAG=${TAG}" >> "${GITHUB_ENV}"
+
       - name: Verify release tag
-        env:
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          TAG="${RELEASE_TAG:?Release tag was not set.}"
           HEAD_COMMIT="$(git rev-parse HEAD)"
           TAG_COMMIT="$(git rev-list -n 1 "refs/tags/${TAG}")"
 
@@ -104,4 +134,3 @@ jobs:
           args: release --clean --config=${{ runner.temp }}/goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
