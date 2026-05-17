@@ -10,15 +10,11 @@ jobs:
   build:
     runs-on: ubuntu-24.04
 
-    steps:
-      - name: Checkout with token
-        if: github.event_name != 'pull_request'
-        uses: actions/checkout@v6.0.1
-        with:
-          token: ${{ secrets.API_GITHUB_TOKEN }}
+    permissions:
+      contents: read
 
-      - name: Checkout without token
-        if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
         uses: actions/checkout@v6.0.1
 
       - name: Fetch Go version
@@ -40,11 +36,3 @@ jobs:
 
       - name: Docker Build Test
         run: docker buildx build --load --tag test:test --file ./Dockerfile ./
-
-      - name: Version
-        if: github.event_name != 'pull_request'
-        uses: cycjimmy/semantic-release-action@v6.0.0
-        with:
-          semantic_version: 24.2.3
-        env:
-          GITHUB_TOKEN: ${{ secrets.API_GITHUB_TOKEN }}
