@@ -10,6 +10,7 @@ import (
 	"github.com/ViRb3/wgcf/v2/cloudflare"
 	"github.com/ViRb3/wgcf/v2/config"
 	"github.com/ViRb3/wgcf/v2/util"
+	"github.com/ViRb3/wgcf/v2/wireguard"
 	"github.com/dustin/go-humanize"
 
 	"github.com/cockroachdb/errors"
@@ -107,11 +108,7 @@ func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.
 		}
 		fmt.Printf("%-9s : %s\n", "Id", id)
 		if currentDevice {
-			clientId := currentDeviceClientId
-			if clientId == "" {
-				clientId = "N/A"
-			}
-			fmt.Printf("%-9s : %s\n", "ClientId", clientId)
+			fmt.Printf("%-9s : %s\n", "ClientId", formatClientId(currentDeviceClientId))
 		}
 		fmt.Printf("%-9s : %s\n", "Type", device.Type)
 		fmt.Printf("%-9s : %s\n", "Model", device.Model)
@@ -122,6 +119,17 @@ func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.
 		fmt.Printf("%-9s : %s\n", "Role", device.Role)
 		fmt.Println()
 	}
+}
+
+func formatClientId(clientId string) string {
+	if clientId == "" {
+		return "N/A"
+	}
+	formatted, err := wireguard.FormatClientId(clientId)
+	if err != nil {
+		return clientId
+	}
+	return formatted
 }
 
 func SetDeviceName(ctx *config.Context, deviceName string) (*cloudflare.BoundDevice, error) {

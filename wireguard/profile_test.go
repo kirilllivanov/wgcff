@@ -10,6 +10,7 @@ DNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001
 MTU = 1280
 [Peer]
 PublicKey = 4
+Reserved = 1, 2, 3
 AllowedIPs = 0.0.0.0/0, ::/0
 Endpoint = 5
 `
@@ -20,6 +21,7 @@ Endpoint = 5
 		Address2:   "3",
 		PublicKey:  "4",
 		Endpoint:   "5",
+		ClientId:   "AQID",
 	})
 	if err != nil {
 		t.Error(err)

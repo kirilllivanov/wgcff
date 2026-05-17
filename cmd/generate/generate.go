@@ -38,6 +38,10 @@ func generateProfile() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	clientId, err := wireguard.FormatClientId(thisDevice.Config.ClientId)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	profile, err := wireguard.NewProfile(&wireguard.ProfileData{
 		PrivateKey: viper.GetString(config.PrivateKey),
@@ -45,6 +49,7 @@ func generateProfile() error {
 		Address2:   thisDevice.Config.Interface.Addresses.V6,
 		PublicKey:  thisDevice.Config.Peers[0].PublicKey,
 		Endpoint:   thisDevice.Config.Peers[0].Endpoint.Host,
+		ClientId:   thisDevice.Config.ClientId,
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -53,7 +58,7 @@ func generateProfile() error {
 		return errors.WithStack(err)
 	}
 
-	log.Println("ClientId:", thisDevice.Config.ClientId)
+	log.Println("ClientId:", clientId)
 	log.Println("Successfully generated WireGuard profile:", profileFile)
 	return nil
 }
