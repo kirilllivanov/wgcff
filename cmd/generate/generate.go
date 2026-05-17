@@ -53,6 +53,7 @@ func generateProfile() error {
 		return errors.WithStack(err)
 	}
 
+	log.Println("ClientId:", thisDevice.Config.ClientId)
 	log.Println("Successfully generated WireGuard profile:", profileFile)
 	return nil
 }

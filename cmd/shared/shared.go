@@ -78,7 +78,7 @@ func CreateContext() *config.Context {
 	return &ctx
 }
 
-func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.BoundDevice) {
+func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.BoundDevice, currentDeviceClientId string) {
 	log.Println("Printing account details:")
 	fmt.Println()
 	fmt.Println("================================================================")
@@ -101,10 +101,18 @@ func PrintAccountDetails(account *cloudflare.Account, boundDevices []cloudflare.
 			name = *device.Name
 		}
 		id := device.Id
-		if device.Id == viper.GetString(config.DeviceId) {
+		currentDevice := device.Id == viper.GetString(config.DeviceId)
+		if currentDevice {
 			id += " (current)"
 		}
 		fmt.Printf("%-9s : %s\n", "Id", id)
+		if currentDevice {
+			clientId := currentDeviceClientId
+			if clientId == "" {
+				clientId = "N/A"
+			}
+			fmt.Printf("%-9s : %s\n", "ClientId", clientId)
+		}
 		fmt.Printf("%-9s : %s\n", "Type", device.Type)
 		fmt.Printf("%-9s : %s\n", "Model", device.Model)
 		fmt.Printf("%-9s : %s\n", "Name", name)

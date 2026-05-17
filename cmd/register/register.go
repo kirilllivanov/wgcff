@@ -84,7 +84,7 @@ func registerAccount() error {
 		return errors.WithStack(err)
 	}
 
-	PrintAccountDetails(account, boundDevices)
+	PrintAccountDetails(account, boundDevices, device.Config.ClientId)
 	log.Println("Successfully created Cloudflare Warp account")
 	return nil
 }

@@ -118,7 +118,7 @@ func updateAccount() error {
 	}
 
 	// refresh in case e.g. account type changed
-	account, err = cloudflare.GetAccount(ctx)
+	thisDevice, err := cloudflare.GetSourceDevice(ctx)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -127,7 +127,8 @@ func updateAccount() error {
 		return errors.WithStack(err)
 	}
 
-	PrintAccountDetails(account, boundDevices)
+	refreshedAccount := cloudflare.Account(thisDevice.Account)
+	PrintAccountDetails(&refreshedAccount, boundDevices, thisDevice.Config.ClientId)
 
 	log.Println("Successfully updated Cloudflare Warp account")
 	return nil

@@ -28,7 +28,7 @@ func status() error {
 
 	ctx := CreateContext()
 
-	account, err := cloudflare.GetAccount(ctx)
+	thisDevice, err := cloudflare.GetSourceDevice(ctx)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -37,6 +37,7 @@ func status() error {
 		return errors.WithStack(err)
 	}
 
-	PrintAccountDetails(account, boundDevices)
+	account := cloudflare.Account(thisDevice.Account)
+	PrintAccountDetails(&account, boundDevices, thisDevice.Config.ClientId)
 	return nil
 }
